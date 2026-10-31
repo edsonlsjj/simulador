@@ -1,0 +1,7 @@
+# PDFs baixados das provas
+data/*.pdf
+
+# Arquivos temporários de compilação
+__pycache__/
+*.pyc
+.system_generated/

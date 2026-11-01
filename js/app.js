@@ -6,8 +6,11 @@ let flaggedQuestions = new Set();
 let timerInterval = null;
 let secondsRemaining = 0;
 let timerMode = 'none';
+let categoryMode = 'teorica';
 let desiredCount = 20;
 let quizStartedAt = 0;
+let lastRenderedCaseKey = null;
+let casePanelOpenState = true;
 
 const HISTORY_STORAGE_KEY = 'temfc-sim:v1';
 const THEME_STORAGE_KEY = 'temfc-theme:v1';
@@ -19,6 +22,8 @@ const quizScreen = document.getElementById('quizScreen');
 const resultScreen = document.getElementById('resultScreen');
 
 const totalBankCount = document.getElementById('totalBankCount');
+const filteredBankHint = document.getElementById('filteredBankHint');
+const categoryModeGroup = document.getElementById('categoryModeGroup');
 const questionCountGroup = document.getElementById('questionCountGroup');
 const timerModeGroup = document.getElementById('timerModeGroup');
 const startBtn = document.getElementById('startBtn');
@@ -27,9 +32,12 @@ const themeToggle = document.getElementById('themeToggle');
 const timerContainer = document.getElementById('timerContainer');
 const timerDisplay = document.getElementById('timerDisplay');
 
+const questionBodyScroll = document.getElementById('questionBodyScroll');
 const currentQProgress = document.getElementById('currentQProgress');
 const currentQOrigin = document.getElementById('currentQOrigin');
+const currentQContext = document.getElementById('currentQContext');
 const currentQStatement = document.getElementById('currentQStatement');
+const currentQOptionCols = document.getElementById('currentQOptionCols');
 const currentQOptions = document.getElementById('currentQOptions');
 const qNumbersGrid = document.getElementById('qNumbersGrid');
 
@@ -59,16 +67,46 @@ const historyEditionStats = document.getElementById('historyEditionStats');
 const historyList = document.getElementById('historyList');
 const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
+const imageLightbox = document.getElementById('imageLightbox');
+const lightboxImg = document.getElementById('lightboxImg');
+const lightboxCaption = document.getElementById('lightboxCaption');
+const lightboxCloseBtn = document.getElementById('lightboxCloseBtn');
+
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
-  if (typeof QUESTION_BANK !== 'undefined') {
-    totalBankCount.textContent = QUESTION_BANK.length;
-  }
-
+  updateBankCountUI();
   applyTheme(getInitialTheme());
   setupEventListeners();
   renderHistory();
 });
+
+function getFilteredBank() {
+  if (typeof QUESTION_BANK === 'undefined' || !Array.isArray(QUESTION_BANK)) {
+    return [];
+  }
+  if (categoryMode === 'teorica') {
+    return QUESTION_BANK.filter((q) => q.category !== 'teorico-pratica');
+  }
+  if (categoryMode === 'teorico-pratica') {
+    return QUESTION_BANK.filter((q) => q.category === 'teorico-pratica');
+  }
+  return QUESTION_BANK;
+}
+
+function updateBankCountUI() {
+  if (typeof QUESTION_BANK === 'undefined' || !Array.isArray(QUESTION_BANK)) return;
+  totalBankCount.textContent = QUESTION_BANK.length;
+  if (!filteredBankHint) return;
+
+  const filtered = getFilteredBank();
+  if (categoryMode === 'teorica') {
+    filteredBankHint.textContent = `• ${filtered.length} da Prova Teórica selecionadas`;
+  } else if (categoryMode === 'teorico-pratica') {
+    filteredBankHint.textContent = `• ${filtered.length} da Teórico-Prática selecionadas`;
+  } else {
+    filteredBankHint.textContent = `• Todas as ${filtered.length} questões ativas`;
+  }
+}
 
 function getSystemTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -111,6 +149,16 @@ function toggleTheme() {
 }
 
 function setupEventListeners() {
+  if (categoryModeGroup) {
+    categoryModeGroup.addEventListener('click', (e) => {
+      const btn = e.target.closest('.pill-btn');
+      if (!btn) return;
+      selectPill(categoryModeGroup, btn);
+      categoryMode = btn.getAttribute('data-category') || 'teorica';
+      updateBankCountUI();
+    });
+  }
+
   questionCountGroup.addEventListener('click', (e) => {
     const btn = e.target.closest('.pill-btn');
     if (!btn) return;
@@ -134,12 +182,33 @@ function setupEventListeners() {
   clearHistoryBtn.addEventListener('click', confirmClearHistory);
   themeToggle.addEventListener('click', toggleTheme);
 
+  if (lightboxCloseBtn && imageLightbox) {
+    lightboxCloseBtn.addEventListener('click', () => imageLightbox.close());
+    imageLightbox.addEventListener('click', (e) => {
+      if (e.target === imageLightbox) {
+        imageLightbox.close();
+      }
+    });
+  }
+
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
     if (getSavedTheme()) return;
     applyTheme(event.matches ? 'dark' : 'light');
   });
 
   document.addEventListener('keydown', handleQuizKeyboard);
+}
+
+function openImageLightbox(src, altText) {
+  if (!imageLightbox || !lightboxImg) return;
+  lightboxImg.src = src;
+  lightboxImg.alt = altText || 'Figura clínica';
+  if (lightboxCaption) {
+    lightboxCaption.textContent = altText || 'Figura clínica';
+  }
+  if (typeof imageLightbox.showModal === 'function') {
+    imageLightbox.showModal();
+  }
 }
 
 function selectPill(group, selectedBtn) {
@@ -152,6 +221,7 @@ function selectPill(group, selectedBtn) {
 
 function handleQuizKeyboard(event) {
   if (quizScreen.classList.contains('hidden')) return;
+  if (imageLightbox && imageLightbox.open) return;
   if (event.altKey || event.ctrlKey || event.metaKey) return;
 
   const key = event.key;
@@ -171,7 +241,7 @@ function handleQuizKeyboard(event) {
   const q = currentQuiz[currentIndex];
   if (!q || !q.options.some((opt) => opt.letter === letter)) return;
   userAnswers[currentIndex] = letter;
-  renderCurrentQuestion();
+  renderCurrentQuestion(false);
   updateGridStatus();
 }
 
@@ -186,18 +256,21 @@ function getRandomSample(array, size) {
 }
 
 function startQuiz() {
-  if (!QUESTION_BANK || QUESTION_BANK.length === 0) {
-    alert("Banco de questões não encontrado.");
+  const pool = getFilteredBank();
+  if (!pool || pool.length === 0) {
+    alert('Nenhuma questão encontrada para a modalidade selecionada.');
     return;
   }
 
   // Sorteia questões de diferentes anos e provas
-  const count = Math.min(desiredCount, QUESTION_BANK.length);
-  currentQuiz = getRandomSample(QUESTION_BANK, count);
+  const count = Math.min(desiredCount, pool.length);
+  currentQuiz = getRandomSample(pool, count);
   currentIndex = 0;
   userAnswers = {};
   flaggedQuestions.clear();
   quizStartedAt = Date.now();
+  lastRenderedCaseKey = null;
+  casePanelOpenState = true;
 
   // Iniciar Cronômetro se solicitado
   if (timerMode === 'standard') {
@@ -214,7 +287,7 @@ function startQuiz() {
   quizScreen.classList.remove('hidden');
 
   buildGrid();
-  renderCurrentQuestion();
+  renderCurrentQuestion(true);
 }
 
 function startTimer() {
@@ -225,7 +298,7 @@ function startTimer() {
     updateTimerDisplay();
     if (secondsRemaining <= 0) {
       clearInterval(timerInterval);
-      alert("Tempo limite de prova atingido! O simulado será finalizado agora.");
+      alert('Tempo limite de prova atingido! O simulado será finalizado agora.');
       finishQuiz();
     }
   }, 1000);
@@ -271,13 +344,209 @@ function updateGridStatus() {
   });
 }
 
-function renderCurrentQuestion() {
+function renderRichBlocks(container, blocks, fallbackText) {
+  container.innerHTML = '';
+  if (Array.isArray(blocks) && blocks.length > 0) {
+    blocks.forEach((blk) => {
+      if (!blk || typeof blk !== 'object') return;
+      if (blk.type === 'paragraph' && blk.text) {
+        const p = document.createElement('p');
+        p.className = 'question-paragraph';
+        p.textContent = blk.text;
+        container.appendChild(p);
+      } else if (blk.type === 'table' && Array.isArray(blk.headers)) {
+        const wrap = document.createElement('div');
+        wrap.className = 'question-table-wrap';
+
+        const table = document.createElement('table');
+        table.className = 'question-table';
+
+        if (blk.headers.some((h) => h && String(h).trim() !== '')) {
+          const thead = document.createElement('thead');
+          const trHead = document.createElement('tr');
+          blk.headers.forEach((hdr) => {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.textContent = hdr || '';
+            trHead.appendChild(th);
+          });
+          thead.appendChild(trHead);
+          table.appendChild(thead);
+        }
+
+        const tbody = document.createElement('tbody');
+        (blk.rows || []).forEach((row) => {
+          const tr = document.createElement('tr');
+          row.forEach((cell) => {
+            const td = document.createElement('td');
+            td.textContent = cell || '';
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        container.appendChild(wrap);
+      } else if (blk.type === 'image' && blk.src) {
+        const fig = document.createElement('figure');
+        fig.className = 'question-figure';
+
+        const zoomBtn = document.createElement('button');
+        zoomBtn.type = 'button';
+        zoomBtn.className = 'figure-zoom-btn';
+        const altLabel = blk.alt || 'Figura clínica da questão';
+        zoomBtn.setAttribute('aria-label', `${altLabel} — clique para ampliar`);
+
+        const img = document.createElement('img');
+        img.src = blk.src;
+        img.alt = altLabel;
+        img.loading = 'lazy';
+
+        zoomBtn.appendChild(img);
+        zoomBtn.addEventListener('click', () => openImageLightbox(blk.src, altLabel));
+
+        const cap = document.createElement('figcaption');
+        cap.className = 'figure-caption';
+        cap.textContent = 'Clique na figura para ampliar';
+
+        fig.appendChild(zoomBtn);
+        fig.appendChild(cap);
+        container.appendChild(fig);
+      }
+    });
+    return;
+  }
+
+  if (fallbackText) {
+    const p = document.createElement('p');
+    p.className = 'question-paragraph';
+    p.textContent = fallbackText;
+    container.appendChild(p);
+  }
+}
+
+function buildCaseDetailsElement(q, isOpen, onToggle) {
+  const details = document.createElement('details');
+  details.className = 'case-details';
+  if (isOpen) {
+    details.open = true;
+  }
+
+  const summary = document.createElement('summary');
+  summary.className = 'case-summary';
+
+  const summaryLeft = document.createElement('span');
+  summaryLeft.className = 'case-summary-title';
+
+  const badge = document.createElement('span');
+  badge.className = 'case-badge';
+  badge.textContent = 'Teórico-Prática';
+
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = q.caseTitle || 'Apresentação do caso e transcrição do vídeo';
+
+  summaryLeft.appendChild(badge);
+  summaryLeft.appendChild(titleSpan);
+
+  const toggleHint = document.createElement('span');
+  toggleHint.className = 'case-toggle-hint';
+  toggleHint.textContent = details.open ? 'Ocultar roteiro' : 'Ver roteiro completo';
+
+  summary.appendChild(summaryLeft);
+  summary.appendChild(toggleHint);
+
+  const body = document.createElement('div');
+  body.className = 'case-content';
+  renderRichBlocks(body, q.caseBlocks, '');
+
+  if (q.videoUrl) {
+    const videoWrap = document.createElement('div');
+    videoWrap.className = 'case-video-actions';
+    const link = document.createElement('a');
+    link.href = q.videoUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.className = 'case-video-link';
+    link.textContent = 'Consultar acervo de vídeos no YouTube da SBMFC ↗';
+    videoWrap.appendChild(link);
+    body.appendChild(videoWrap);
+  }
+
+  details.addEventListener('toggle', () => {
+    toggleHint.textContent = details.open ? 'Ocultar roteiro' : 'Ver roteiro completo';
+    if (typeof onToggle === 'function') {
+      onToggle(details.open);
+    }
+  });
+
+  details.appendChild(summary);
+  details.appendChild(body);
+  return details;
+}
+
+function renderCurrentQuestion(resetScroll = false) {
   const q = currentQuiz[currentIndex];
   if (!q) return;
 
+  const modalityLabel = q.category === 'teorico-pratica' ? 'Teórico-Prática' : 'Teórica';
   currentQProgress.textContent = `Questão ${currentIndex + 1} de ${currentQuiz.length}`;
-  currentQOrigin.textContent = `Origem: ${q.edition} (${q.year}) - Item #${q.number}`;
-  currentQStatement.textContent = q.statement;
+  currentQOrigin.textContent = `${q.edition} (${q.year}) • ${modalityLabel} • Item #${q.number}`;
+
+  // Contexto de caso/vídeo para questões Teórico-Práticas
+  if (currentQContext) {
+    if (Array.isArray(q.caseBlocks) && q.caseBlocks.length > 0) {
+      const caseKey = `${q.edition}::${q.caseTitle || ''}`;
+      if (caseKey !== lastRenderedCaseKey) {
+        lastRenderedCaseKey = caseKey;
+        casePanelOpenState = true;
+      }
+      currentQContext.innerHTML = '';
+      currentQContext.classList.remove('hidden');
+      const detailsEl = buildCaseDetailsElement(q, casePanelOpenState, (openNow) => {
+        casePanelOpenState = openNow;
+      });
+      currentQContext.appendChild(detailsEl);
+    } else {
+      lastRenderedCaseKey = null;
+      currentQContext.innerHTML = '';
+      currentQContext.classList.add('hidden');
+    }
+  }
+
+  // Enunciado rico (parágrafos, tabelas HTML e figuras clínicas)
+  renderRichBlocks(currentQStatement, q.statementBlocks, q.statement);
+
+  // Cabeçalho de colunas quando as alternativas são tabulares
+  const hasTabularOptions =
+    Array.isArray(q.optionColumns) &&
+    q.optionColumns.length > 0 &&
+    q.options.every((o) => Array.isArray(o.cells) && o.cells.length === q.optionColumns.length);
+
+  if (currentQOptionCols) {
+    if (hasTabularOptions) {
+      currentQOptionCols.innerHTML = '';
+      currentQOptionCols.classList.remove('hidden');
+      currentQOptionCols.style.setProperty('--opt-cols', String(q.optionColumns.length));
+
+      const spacer = document.createElement('span');
+      spacer.className = 'option-col-spacer';
+      spacer.textContent = 'Alt.';
+      currentQOptionCols.appendChild(spacer);
+
+      const gridHead = document.createElement('div');
+      gridHead.className = 'option-cells-grid option-cells-header';
+      gridHead.style.setProperty('--opt-cols', String(q.optionColumns.length));
+      q.optionColumns.forEach((colName) => {
+        const colSpan = document.createElement('span');
+        colSpan.textContent = colName;
+        gridHead.appendChild(colSpan);
+      });
+      currentQOptionCols.appendChild(gridHead);
+    } else {
+      currentQOptionCols.innerHTML = '';
+      currentQOptionCols.classList.add('hidden');
+    }
+  }
 
   currentQOptions.innerHTML = '';
   q.options.forEach((opt) => {
@@ -295,16 +564,30 @@ function renderCurrentQuestion() {
     const letterSpan = document.createElement('span');
     letterSpan.className = 'option-letter';
     letterSpan.textContent = `${opt.letter})`;
-
-    const textSpan = document.createElement('span');
-    textSpan.className = 'option-text';
-    textSpan.textContent = opt.text;
-
     optBtn.appendChild(letterSpan);
-    optBtn.appendChild(textSpan);
+
+    if (hasTabularOptions) {
+      const cellsGrid = document.createElement('span');
+      cellsGrid.className = 'option-cells-grid';
+      cellsGrid.style.setProperty('--opt-cols', String(q.optionColumns.length));
+      opt.cells.forEach((cellVal, cIdx) => {
+        const cellSpan = document.createElement('span');
+        cellSpan.className = 'option-cell';
+        cellSpan.setAttribute('data-col-label', `${q.optionColumns[cIdx]}: `);
+        cellSpan.textContent = cellVal;
+        cellsGrid.appendChild(cellSpan);
+      });
+      optBtn.appendChild(cellsGrid);
+    } else {
+      const textSpan = document.createElement('span');
+      textSpan.className = 'option-text';
+      textSpan.textContent = opt.text;
+      optBtn.appendChild(textSpan);
+    }
+
     optBtn.addEventListener('click', () => {
       userAnswers[currentIndex] = opt.letter;
-      renderCurrentQuestion();
+      renderCurrentQuestion(false);
       updateGridStatus();
     });
 
@@ -318,12 +601,16 @@ function renderCurrentQuestion() {
   flagBtn.textContent = flagged ? 'Desmarcar dúvida' : 'Marcar dúvida';
   flagBtn.setAttribute('aria-pressed', flagged ? 'true' : 'false');
   updateGridStatus();
+
+  if (resetScroll && questionBodyScroll) {
+    questionBodyScroll.scrollTop = 0;
+  }
 }
 
 function navigateQuestion(newIndex) {
   if (newIndex >= 0 && newIndex < currentQuiz.length) {
     currentIndex = newIndex;
-    renderCurrentQuestion();
+    renderCurrentQuestion(true);
   }
 }
 
@@ -333,7 +620,7 @@ function toggleFlagCurrent() {
   } else {
     flaggedQuestions.add(currentIndex);
   }
-  renderCurrentQuestion();
+  renderCurrentQuestion(false);
 }
 
 function confirmFinishQuiz() {
@@ -351,6 +638,12 @@ function confirmFinishQuiz() {
   }
 }
 
+function isLetterAcceptedByGabarito(letter, correctAns) {
+  if (!letter || !correctAns) return false;
+  const accepted = correctAns.split('/').map((s) => s.trim().toUpperCase());
+  return accepted.includes(letter.toUpperCase());
+}
+
 function finishQuiz() {
   clearInterval(timerInterval);
   quizScreen.classList.add('hidden');
@@ -366,12 +659,12 @@ function finishQuiz() {
     const correctAns = (q.answer || '').toUpperCase().trim();
     let scored = false;
 
-    // Se a questão foi anulada, todos ganham o ponto
+    // Se a questão foi anulada pós-recurso, todos ganham o ponto
     if (correctAns === 'ANULADA' || correctAns === 'X') {
       correctCount++;
       scored = true;
       anuladaCount++;
-    } else if (userAns && userAns === correctAns) {
+    } else if (userAns && isLetterAcceptedByGabarito(userAns, correctAns)) {
       correctCount++;
       scored = true;
     }
@@ -427,32 +720,59 @@ function finishQuiz() {
 function renderReviewList() {
   reviewList.innerHTML = '';
   currentQuiz.forEach((q, idx) => {
-    const userAns = userAnswers[idx] || 'Não respondida';
+    const userAns = userAnswers[idx] || null;
     const correctAns = (q.answer || '').toUpperCase().trim();
-    const isAnulada = (correctAns === 'ANULADA' || correctAns === 'X');
-    const isCorrect = isAnulada || (userAns === correctAns);
+    const isAnulada = correctAns === 'ANULADA' || correctAns === 'X';
+    const isCorrect = isAnulada || (userAns && isLetterAcceptedByGabarito(userAns, correctAns));
 
     const card = document.createElement('article');
     card.className = `review-card ${isAnulada ? 'anulada' : (isCorrect ? 'correct' : 'wrong')}`;
 
-    let statusText = isCorrect ? 'Acertou' : 'Errou';
+    let statusText = isCorrect ? 'Acertou' : (userAns ? 'Errou' : 'Não respondida');
     let statusClass = isCorrect ? 'correct' : 'wrong';
     if (isAnulada) {
-      statusText = 'Questão anulada (ponto atribuído)';
+      statusText = 'Questão anulada pós-recurso (ponto atribuído)';
       statusClass = 'anulada';
     }
+
+    const modalityLabel = q.category === 'teorico-pratica' ? 'Teórico-Prática' : 'Teórica';
+    const meta = document.createElement('div');
+    meta.className = 'review-meta';
+    const origin = document.createElement('span');
+    origin.textContent = `Questão ${idx + 1} • ${q.edition} (${q.year}) • ${modalityLabel} • Item #${q.number}`;
+    const status = document.createElement('span');
+    status.className = `review-status ${statusClass}`;
+    status.textContent = statusText;
+    meta.appendChild(origin);
+    meta.appendChild(status);
+    card.appendChild(meta);
+
+    if (Array.isArray(q.caseBlocks) && q.caseBlocks.length > 0) {
+      const reviewCaseWrap = document.createElement('div');
+      reviewCaseWrap.className = 'case-context-panel review-case-panel';
+      reviewCaseWrap.appendChild(buildCaseDetailsElement(q, false, null));
+      card.appendChild(reviewCaseWrap);
+    }
+
+    const statementWrap = document.createElement('div');
+    statementWrap.className = 'review-statement';
+    renderRichBlocks(statementWrap, q.statementBlocks, q.statement);
+    card.appendChild(statementWrap);
 
     const optionsWrap = document.createElement('div');
     optionsWrap.className = 'review-options';
     q.options.forEach((opt) => {
       const line = document.createElement('div');
       line.className = 'review-option';
+      const isGabOpt = !isAnulada && isLetterAcceptedByGabarito(opt.letter, correctAns);
       let mark = '';
-      if (opt.letter === correctAns) {
+      if (isGabOpt && opt.letter === userAns) {
+        mark = ' (Sua resposta • Gabarito oficial)';
+        line.classList.add('gabarito');
+      } else if (isGabOpt) {
         mark = ' (Gabarito oficial)';
         line.classList.add('gabarito');
-      }
-      if (opt.letter === userAns && !isCorrect) {
+      } else if (opt.letter === userAns && !isCorrect) {
         mark = ' (Sua resposta)';
         line.classList.add('sua-resposta');
       }
@@ -460,22 +780,6 @@ function renderReviewList() {
       optionsWrap.appendChild(line);
     });
 
-    const meta = document.createElement('div');
-    meta.className = 'review-meta';
-    const origin = document.createElement('span');
-    origin.textContent = `Questão ${idx + 1} • ${q.edition} (${q.year})`;
-    const status = document.createElement('span');
-    status.className = `review-status ${statusClass}`;
-    status.textContent = statusText;
-    meta.appendChild(origin);
-    meta.appendChild(status);
-
-    const statement = document.createElement('p');
-    statement.className = 'review-statement';
-    statement.textContent = q.statement;
-
-    card.appendChild(meta);
-    card.appendChild(statement);
     card.appendChild(optionsWrap);
     reviewList.appendChild(card);
   });
@@ -567,8 +871,8 @@ function formatAttemptDate(isoDate) {
 
 function aggregateEditions(history) {
   const map = {};
-  history.forEach(attempt => {
-    (attempt.editions || []).forEach(ed => {
+  history.forEach((attempt) => {
+    (attempt.editions || []).forEach((ed) => {
       if (!ed || typeof ed !== 'object') return;
       const name = ed.name || 'Edição desconhecida';
       if (!map[name]) {
@@ -654,7 +958,7 @@ function renderHistory() {
   const totalQuestions = history.reduce((sum, item) => sum + item.total, 0);
   const totalCorrect = history.reduce((sum, item) => sum + item.correct, 0);
   const average = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
-  const best = Math.max(...history.map(item => item.percent));
+  const best = Math.max(...history.map((item) => item.percent));
 
   historyAverage.textContent = `${average}%`;
   historyBest.textContent = `${best}%`;
@@ -663,10 +967,10 @@ function renderHistory() {
   renderEditionStats(historyEditionStats, aggregateEditions(history));
 
   historyList.innerHTML = '';
-  history.forEach(attempt => {
+  history.forEach((attempt) => {
     const item = document.createElement('article');
     item.className = `history-item ${attempt.approved ? 'approved' : 'failed'}`;
-    const chips = (attempt.editions || []).map(ed => {
+    const chips = (attempt.editions || []).map((ed) => {
       const name = ed.name || 'Edição';
       const total = Number(ed.total) || 0;
       const correct = Number(ed.correct) || 0;

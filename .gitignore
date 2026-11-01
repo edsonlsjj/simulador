@@ -1,5 +1,7 @@
-# PDFs baixados das provas
+# PDFs e arquivos temporários baixados das provas
 data/*.pdf
+data/questions_raw.json
+data/youtube_links.json
 
 # Arquivos temporários de compilação
 __pycache__/

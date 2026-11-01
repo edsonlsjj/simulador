@@ -56,13 +56,23 @@
     <section id="setupScreen" class="card" aria-labelledby="setupTitle">
       <div class="setup-hero">
         <h2 id="setupTitle">Simulado inteligente TEMFC</h2>
-        <p>Treine com questões sortidas e reais das edições do TEMFC (37, 36, 35, 34, 30 e anteriores).</p>
+        <p>Treine com questões reais e sortidas das provas oficiais da SBMFC (TEMFC 37, 36, 35, 34, 30 e 29), revisadas com gabaritos definitivos pós-recurso.</p>
         <div class="bank-stats">
-          Banco oficial: <strong id="totalBankCount">0</strong> questões catalogadas
+          <span>Banco oficial: <strong id="totalBankCount">0</strong> questões</span>
+          <span id="filteredBankHint" class="bank-stats-sub"></span>
         </div>
       </div>
 
       <div class="config-grid">
+        <fieldset class="config-box config-box-full">
+          <legend>Modalidade das questões</legend>
+          <div class="options-pill-group" id="categoryModeGroup" role="radiogroup" aria-label="Modalidade das questões">
+            <button type="button" class="pill-btn active" role="radio" aria-checked="true" data-category="teorica">Somente Prova Teórica</button>
+            <button type="button" class="pill-btn" role="radio" aria-checked="false" data-category="all">Teórica + Teórico-Prática</button>
+            <button type="button" class="pill-btn" role="radio" aria-checked="false" data-category="teorico-pratica">Somente Teórico-Prática (casos e transcrições)</button>
+          </div>
+        </fieldset>
+
         <fieldset class="config-box">
           <legend>Quantidade de questões sortidas</legend>
           <div class="options-pill-group" id="questionCountGroup" role="radiogroup" aria-label="Quantidade de questões">
@@ -129,11 +139,14 @@
             <span class="question-origin" id="currentQOrigin">TEMFC 37</span>
           </div>
 
-          <div class="question-body">
+          <div class="question-body" id="questionBodyScroll">
+            <div id="currentQContext" class="case-context-panel hidden"></div>
+
             <div class="question-statement" id="currentQStatement">
               Carregando enunciado...
             </div>
 
+            <div id="currentQOptionCols" class="option-columns-head hidden" aria-hidden="true"></div>
             <div class="options-list" id="currentQOptions" role="listbox" aria-label="Alternativas da questão">
             </div>
           </div>
@@ -205,6 +218,18 @@
       <div id="reviewList" class="review-list"></div>
     </section>
   </main>
+
+  <dialog id="imageLightbox" class="image-lightbox" aria-label="Visualização ampliada da figura clínica">
+    <div class="lightbox-inner">
+      <div class="lightbox-bar">
+        <span id="lightboxCaption" class="lightbox-caption">Figura clínica</span>
+        <button type="button" id="lightboxCloseBtn" class="btn-secondary lightbox-close">Fechar</button>
+      </div>
+      <div class="lightbox-body">
+        <img id="lightboxImg" src="" alt="">
+      </div>
+    </div>
+  </dialog>
 
   <script src="js/question-bank.js"></script>
   <script src="js/app.js"></script>

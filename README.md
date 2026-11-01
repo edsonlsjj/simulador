@@ -8,6 +8,7 @@ Simulador de provas para obtenção do **Título de Especialista em Medicina de 
 - **Configuração de Prova:** Escolha entre 20, 40, 60 ou 80 questões, com cronômetro opcional (3 min/questão).
 - **Correção Oficial:** Linha de corte em **70%** para determinar status de **APROVADO(A)** ou **NÃO APROVADO(A)**.
 - **Revisão Detalhada:** Comparativo da sua resposta com o gabarito oficial e atribuição de ponto para questões anuladas pós-recurso.
+- **Histórico no navegador:** Ao finalizar, o resultado fica salvo no `localStorage` (média, melhor nota, desempenho por edição e lista dos últimos simulados).
 
 ## 🚀 Como Executar
 Não requer instalação de dependências ou servidores.

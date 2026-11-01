@@ -58,6 +58,38 @@
       <button id="startBtn" class="btn-primary">
         🚀 Gerar Simulado com Questões Sortidas
       </button>
+
+      <div id="historySection" class="history-section">
+        <div class="history-header">
+          <h3>Meus simulados</h3>
+          <button type="button" id="clearHistoryBtn" class="btn-secondary hidden">Limpar histórico</button>
+        </div>
+        <p id="historyEmpty" class="history-empty">
+          Nenhum simulado salvo neste navegador. Finalize uma prova para acompanhar sua evolução.
+        </p>
+        <div id="historyContent" class="hidden">
+          <div class="stats-flex history-summary">
+            <div class="stat-item">
+              <span class="stat-value" id="historyAverage">—</span>
+              <span class="stat-label">Média geral</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="historyBest">—</span>
+              <span class="stat-label">Melhor nota</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value" id="historyCount">0</span>
+              <span class="stat-label">Simulados</span>
+            </div>
+          </div>
+
+          <h4 class="history-block-title">Desempenho por edição do TEMFC</h4>
+          <div id="historyEditionStats" class="edition-stats"></div>
+
+          <h4 class="history-block-title">Últimos simulados</h4>
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </div>
     </section>
 
     <!-- TELA 2: AMBIENTE DE PROVA -->

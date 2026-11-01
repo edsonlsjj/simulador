@@ -453,7 +453,9 @@ main {
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
-  padding-right: var(--space-1);
+  padding-right: var(--space-2);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 .sidebar-grid {
@@ -522,6 +524,10 @@ main {
   background: var(--color-primary-soft);
 }
 
+.option-item:focus-visible {
+  outline-offset: -2px;
+}
+
 .option-item.selected,
 .option-item[aria-selected="true"] {
   border-color: var(--color-primary);
@@ -565,15 +571,19 @@ main {
 
 .question-numbers-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--space-2);
   max-height: 22rem;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding-right: var(--space-1);
+  padding: var(--space-1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 .q-num-btn {
   aspect-ratio: 1;
+  min-width: 0;
   min-height: 40px;
   display: flex;
   align-items: center;
@@ -968,6 +978,8 @@ main {
   gap: var(--space-3);
   max-height: 28rem;
   overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
 }
 
 .history-item {
@@ -1060,8 +1072,25 @@ main {
     display: none;
   }
 
+  .logo-title {
+    min-width: 0;
+  }
+
   .logo-title h1 {
     font-size: 0.95rem;
+  }
+
+  .header-container:has(.timer-badge:not(.hidden)) .logo-title {
+    display: none;
+  }
+
+  .stat-item {
+    padding: var(--space-3) var(--space-2);
+  }
+
+  .stat-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.02em;
   }
 
   .history-header,
@@ -1076,7 +1105,7 @@ main {
   }
 
   .question-numbers-grid {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .question-statement {

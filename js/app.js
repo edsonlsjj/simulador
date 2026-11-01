@@ -10,6 +10,7 @@ let desiredCount = 20;
 let quizStartedAt = 0;
 
 const HISTORY_STORAGE_KEY = 'temfc-sim:v1';
+const THEME_STORAGE_KEY = 'temfc-theme:v1';
 const HISTORY_LIMIT = 50;
 
 // Elementos do DOM
@@ -21,6 +22,7 @@ const totalBankCount = document.getElementById('totalBankCount');
 const questionCountGroup = document.getElementById('questionCountGroup');
 const timerModeGroup = document.getElementById('timerModeGroup');
 const startBtn = document.getElementById('startBtn');
+const themeToggle = document.getElementById('themeToggle');
 
 const timerContainer = document.getElementById('timerContainer');
 const timerDisplay = document.getElementById('timerDisplay');
@@ -42,7 +44,9 @@ const resultSubtitle = document.getElementById('resultSubtitle');
 const statScore = document.getElementById('statScore');
 const statCorrect = document.getElementById('statCorrect');
 const statWrong = document.getElementById('statWrong');
+const statAnuladas = document.getElementById('statAnuladas');
 const statTotal = document.getElementById('statTotal');
+const resultEditionStats = document.getElementById('resultEditionStats');
 const reviewList = document.getElementById('reviewList');
 const restartBtn = document.getElementById('restartBtn');
 
@@ -61,27 +65,64 @@ document.addEventListener('DOMContentLoaded', () => {
     totalBankCount.textContent = QUESTION_BANK.length;
   }
 
+  applyTheme(getInitialTheme());
   setupEventListeners();
   renderHistory();
 });
 
+function getSystemTheme() {
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function getSavedTheme() {
+  try {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
+  } catch (err) {}
+  return null;
+}
+
+function getInitialTheme() {
+  return getSavedTheme() || getSystemTheme();
+}
+
+function applyTheme(theme) {
+  const next = theme === 'dark' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  if (themeToggle) {
+    themeToggle.setAttribute(
+      'aria-label',
+      next === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'
+    );
+  }
+}
+
+function persistTheme(theme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch (err) {}
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  persistTheme(next);
+}
+
 function setupEventListeners() {
-  // Seleção de quantidade de questões
   questionCountGroup.addEventListener('click', (e) => {
-    if (e.target.classList.contains('pill-btn')) {
-      questionCountGroup.querySelectorAll('.pill-btn').forEach(btn => btn.classList.remove('active'));
-      e.target.classList.add('active');
-      desiredCount = parseInt(e.target.getAttribute('data-count'), 10);
-    }
+    const btn = e.target.closest('.pill-btn');
+    if (!btn) return;
+    selectPill(questionCountGroup, btn);
+    desiredCount = parseInt(btn.getAttribute('data-count'), 10);
   });
 
-  // Seleção de temporizador
   timerModeGroup.addEventListener('click', (e) => {
-    if (e.target.classList.contains('pill-btn')) {
-      timerModeGroup.querySelectorAll('.pill-btn').forEach(btn => btn.classList.remove('active'));
-      e.target.classList.add('active');
-      timerMode = e.target.getAttribute('data-timer');
-    }
+    const btn = e.target.closest('.pill-btn');
+    if (!btn) return;
+    selectPill(timerModeGroup, btn);
+    timerMode = btn.getAttribute('data-timer');
   });
 
   startBtn.addEventListener('click', startQuiz);
@@ -91,6 +132,47 @@ function setupEventListeners() {
   finishBtn.addEventListener('click', confirmFinishQuiz);
   restartBtn.addEventListener('click', resetToSetup);
   clearHistoryBtn.addEventListener('click', confirmClearHistory);
+  themeToggle.addEventListener('click', toggleTheme);
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (event) => {
+    if (getSavedTheme()) return;
+    applyTheme(event.matches ? 'dark' : 'light');
+  });
+
+  document.addEventListener('keydown', handleQuizKeyboard);
+}
+
+function selectPill(group, selectedBtn) {
+  group.querySelectorAll('.pill-btn').forEach((btn) => {
+    const isActive = btn === selectedBtn;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-checked', isActive ? 'true' : 'false');
+  });
+}
+
+function handleQuizKeyboard(event) {
+  if (quizScreen.classList.contains('hidden')) return;
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+  const key = event.key;
+  if (key === 'ArrowLeft') {
+    event.preventDefault();
+    navigateQuestion(currentIndex - 1);
+    return;
+  }
+  if (key === 'ArrowRight') {
+    event.preventDefault();
+    navigateQuestion(currentIndex + 1);
+    return;
+  }
+
+  const letter = key.toUpperCase();
+  if (!['A', 'B', 'C', 'D'].includes(letter)) return;
+  const q = currentQuiz[currentIndex];
+  if (!q || !q.options.some((opt) => opt.letter === letter)) return;
+  userAnswers[currentIndex] = letter;
+  renderCurrentQuestion();
+  updateGridStatus();
 }
 
 // Embaralhador de questões (Fisher-Yates)
@@ -163,6 +245,7 @@ function buildGrid() {
     btn.type = 'button';
     btn.className = 'q-num-btn';
     btn.textContent = idx + 1;
+    btn.setAttribute('aria-label', `Ir para a questão ${idx + 1}`);
     btn.addEventListener('click', () => navigateQuestion(idx));
     qNumbersGrid.appendChild(btn);
   });
@@ -175,6 +258,9 @@ function updateGridStatus() {
     btn.className = 'q-num-btn';
     if (idx === currentIndex) {
       btn.classList.add('active');
+      btn.setAttribute('aria-current', 'true');
+    } else {
+      btn.removeAttribute('aria-current');
     }
     if (userAnswers[idx] !== undefined) {
       btn.classList.add('answered');
@@ -193,34 +279,44 @@ function renderCurrentQuestion() {
   currentQOrigin.textContent = `Origem: ${q.edition} (${q.year}) - Item #${q.number}`;
   currentQStatement.textContent = q.statement;
 
-  // Renderizar opções A, B, C, D
   currentQOptions.innerHTML = '';
-  q.options.forEach(opt => {
-    const optDiv = document.createElement('div');
-    optDiv.className = 'option-item';
-    if (userAnswers[currentIndex] === opt.letter) {
-      optDiv.classList.add('selected');
+  q.options.forEach((opt) => {
+    const optBtn = document.createElement('button');
+    optBtn.type = 'button';
+    optBtn.className = 'option-item';
+    optBtn.setAttribute('role', 'option');
+    const selected = userAnswers[currentIndex] === opt.letter;
+    if (selected) {
+      optBtn.classList.add('selected');
     }
+    optBtn.setAttribute('aria-selected', selected ? 'true' : 'false');
+    optBtn.setAttribute('aria-label', `Alternativa ${opt.letter}: ${opt.text}`);
 
-    optDiv.innerHTML = `
-      <span class="option-letter">${opt.letter})</span>
-      <span class="option-text">${opt.text}</span>
-    `;
+    const letterSpan = document.createElement('span');
+    letterSpan.className = 'option-letter';
+    letterSpan.textContent = `${opt.letter})`;
 
-    optDiv.addEventListener('click', () => {
+    const textSpan = document.createElement('span');
+    textSpan.className = 'option-text';
+    textSpan.textContent = opt.text;
+
+    optBtn.appendChild(letterSpan);
+    optBtn.appendChild(textSpan);
+    optBtn.addEventListener('click', () => {
       userAnswers[currentIndex] = opt.letter;
       renderCurrentQuestion();
       updateGridStatus();
     });
 
-    currentQOptions.appendChild(optDiv);
+    currentQOptions.appendChild(optBtn);
   });
 
-  // Atualizar botões de navegação
   prevBtn.disabled = currentIndex === 0;
   nextBtn.disabled = currentIndex === currentQuiz.length - 1;
 
-  flagBtn.textContent = flaggedQuestions.has(currentIndex) ? '🚩 Desmarcar Dúvida' : '🏳️ Marcar Dúvida';
+  const flagged = flaggedQuestions.has(currentIndex);
+  flagBtn.textContent = flagged ? 'Desmarcar dúvida' : 'Marcar dúvida';
+  flagBtn.setAttribute('aria-pressed', flagged ? 'true' : 'false');
   updateGridStatus();
 }
 
@@ -261,6 +357,7 @@ function finishQuiz() {
   resultScreen.classList.remove('hidden');
 
   let correctCount = 0;
+  let anuladaCount = 0;
   const total = currentQuiz.length;
   const editionMap = {};
 
@@ -273,6 +370,7 @@ function finishQuiz() {
     if (correctAns === 'ANULADA' || correctAns === 'X') {
       correctCount++;
       scored = true;
+      anuladaCount++;
     } else if (userAns && userAns === correctAns) {
       correctCount++;
       scored = true;
@@ -291,22 +389,25 @@ function finishQuiz() {
   const percent = Math.round((correctCount / total) * 100);
   const isApproved = percent >= 70; // Corte oficial SBMFC: 70%
   const editions = Object.values(editionMap).sort(compareEditions);
+  const acertosExibicao = correctCount - anuladaCount;
+  const errosExibicao = total - correctCount;
 
-  // Banner
   if (isApproved) {
-    resultBanner.className = 'result-banner approved';
-    resultBadge.textContent = '🎉 APROVADO(A)!';
+    resultBanner.className = 'result-hero approved';
+    resultBadge.textContent = 'Aprovado';
     resultSubtitle.textContent = `Parabéns! Você alcançou ${percent}%, superando a nota de corte oficial de 70% da SBMFC.`;
   } else {
-    resultBanner.className = 'result-banner failed';
-    resultBadge.textContent = '⚠️ NÃO APROVADO(A)';
+    resultBanner.className = 'result-hero failed';
+    resultBadge.textContent = 'Não aprovado';
     resultSubtitle.textContent = `Você obteve ${percent}%. A nota de corte oficial para obtenção do Título pela SBMFC é de 70%. Continue treinando!`;
   }
 
   statScore.textContent = `${percent}%`;
-  statCorrect.textContent = correctCount;
-  statWrong.textContent = total - correctCount;
+  statCorrect.textContent = acertosExibicao;
+  statWrong.textContent = errosExibicao;
+  statAnuladas.textContent = anuladaCount;
   statTotal.textContent = total;
+  renderEditionStats(resultEditionStats, editions);
 
   persistAttempt({
     id: `${Date.now()}`,
@@ -320,6 +421,7 @@ function finishQuiz() {
   });
 
   renderReviewList();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function renderReviewList() {
@@ -330,38 +432,51 @@ function renderReviewList() {
     const isAnulada = (correctAns === 'ANULADA' || correctAns === 'X');
     const isCorrect = isAnulada || (userAns === correctAns);
 
-    const card = document.createElement('div');
-    card.className = `review-card ${isCorrect ? 'correct' : 'wrong'}`;
+    const card = document.createElement('article');
+    card.className = `review-card ${isAnulada ? 'anulada' : (isCorrect ? 'correct' : 'wrong')}`;
 
-    let statusText = isCorrect ? '✅ Acertou' : '❌ Errou';
-    if (isAnulada) statusText = '⚖️ Questão Anulada (Ponto Atribuído)';
+    let statusText = isCorrect ? 'Acertou' : 'Errou';
+    let statusClass = isCorrect ? 'correct' : 'wrong';
+    if (isAnulada) {
+      statusText = 'Questão anulada (ponto atribuído)';
+      statusClass = 'anulada';
+    }
 
-    let optionsHtml = '';
-    q.options.forEach(opt => {
+    const optionsWrap = document.createElement('div');
+    optionsWrap.className = 'review-options';
+    q.options.forEach((opt) => {
+      const line = document.createElement('div');
+      line.className = 'review-option';
       let mark = '';
-      let style = '';
       if (opt.letter === correctAns) {
-        mark = ' <strong>(Gabarito Oficial)</strong>';
-        style = 'color: var(--success); font-weight: 600;';
+        mark = ' (Gabarito oficial)';
+        line.classList.add('gabarito');
       }
       if (opt.letter === userAns && !isCorrect) {
-        mark = ' <strong>(Sua resposta)</strong>';
-        style = 'color: var(--danger); text-decoration: line-through;';
+        mark = ' (Sua resposta)';
+        line.classList.add('sua-resposta');
       }
-      optionsHtml += `<div style="margin: 4px 0; ${style}">${opt.letter}) ${opt.text}${mark}</div>`;
+      line.textContent = `${opt.letter}) ${opt.text}${mark}`;
+      optionsWrap.appendChild(line);
     });
 
-    card.innerHTML = `
-      <div class="review-meta">
-        <span>Questão ${idx + 1} &bull; ${q.edition} (${q.year})</span>
-        <span style="${isCorrect ? 'color: var(--success);' : 'color: var(--danger);'}">${statusText}</span>
-      </div>
-      <p style="margin-bottom: 12px; font-weight: 500;">${q.statement}</p>
-      <div style="background: var(--neutral-light); padding: 12px; border-radius: var(--radius-sm); font-size: 14px;">
-        ${optionsHtml}
-      </div>
-    `;
+    const meta = document.createElement('div');
+    meta.className = 'review-meta';
+    const origin = document.createElement('span');
+    origin.textContent = `Questão ${idx + 1} • ${q.edition} (${q.year})`;
+    const status = document.createElement('span');
+    status.className = `review-status ${statusClass}`;
+    status.textContent = statusText;
+    meta.appendChild(origin);
+    meta.appendChild(status);
 
+    const statement = document.createElement('p');
+    statement.className = 'review-statement';
+    statement.textContent = q.statement;
+
+    card.appendChild(meta);
+    card.appendChild(statement);
+    card.appendChild(optionsWrap);
     reviewList.appendChild(card);
   });
 }
@@ -468,6 +583,57 @@ function aggregateEditions(history) {
   return Object.values(map).sort(compareEditions);
 }
 
+function renderEditionStats(container, editions) {
+  container.innerHTML = '';
+  if (!editions || editions.length === 0) {
+    container.innerHTML = '<p class="history-empty">Ainda não há desempenho por edição para exibir.</p>';
+    return;
+  }
+
+  editions.forEach((ed) => {
+    const percent = ed.total > 0 ? Math.round((ed.correct / ed.total) * 100) : 0;
+    const approved = percent >= 70;
+    const row = document.createElement('div');
+    row.className = 'edition-row';
+
+    const head = document.createElement('div');
+    head.className = 'edition-row-head';
+    const name = document.createElement('span');
+    name.className = 'edition-row-name';
+    name.textContent = ed.name;
+    const percentEl = document.createElement('span');
+    percentEl.className = `edition-row-percent${approved ? ' approved' : ''}`;
+    percentEl.textContent = `${percent}%`;
+    head.appendChild(name);
+    head.appendChild(percentEl);
+
+    const bar = document.createElement('div');
+    bar.className = 'edition-bar';
+    bar.setAttribute('role', 'progressbar');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', '100');
+    bar.setAttribute('aria-valuenow', String(percent));
+    bar.setAttribute('aria-label', `Aproveitamento em ${ed.name}: ${percent}%`);
+    const fill = document.createElement('div');
+    fill.className = `edition-bar-fill${approved ? ' approved' : ''}`;
+    fill.style.width = `${Math.min(percent, 100)}%`;
+    const cutoff = document.createElement('span');
+    cutoff.className = 'edition-cutoff';
+    cutoff.setAttribute('aria-hidden', 'true');
+    bar.appendChild(fill);
+    bar.appendChild(cutoff);
+
+    const meta = document.createElement('p');
+    meta.className = 'edition-row-meta';
+    meta.textContent = `${ed.correct} de ${ed.total} questões`;
+
+    row.appendChild(head);
+    row.appendChild(bar);
+    row.appendChild(meta);
+    container.appendChild(row);
+  });
+}
+
 function renderHistory() {
   const history = loadHistory();
   const hasHistory = history.length > 0;
@@ -494,25 +660,7 @@ function renderHistory() {
   historyBest.textContent = `${best}%`;
   historyCount.textContent = String(history.length);
 
-  const editionTotals = aggregateEditions(history);
-  historyEditionStats.innerHTML = '';
-  if (editionTotals.length === 0) {
-    historyEditionStats.innerHTML = '<p class="history-empty">Ainda não há desempenho por edição para exibir.</p>';
-  } else {
-    editionTotals.forEach(ed => {
-      const percent = ed.total > 0 ? Math.round((ed.correct / ed.total) * 100) : 0;
-      const row = document.createElement('div');
-      row.className = 'edition-row';
-      row.innerHTML = `
-        <span class="edition-row-name">${ed.name}</span>
-        <div class="edition-bar">
-          <div class="edition-bar-fill ${percent >= 70 ? 'approved' : ''}" style="width: ${Math.min(percent, 100)}%;"></div>
-        </div>
-        <span class="edition-row-meta">${ed.correct}/${ed.total} (${percent}%)</span>
-      `;
-      historyEditionStats.appendChild(row);
-    });
-  }
+  renderEditionStats(historyEditionStats, aggregateEditions(history));
 
   historyList.innerHTML = '';
   history.forEach(attempt => {
@@ -522,22 +670,33 @@ function renderHistory() {
       const name = ed.name || 'Edição';
       const total = Number(ed.total) || 0;
       const correct = Number(ed.correct) || 0;
-      return `<span class="history-chip">${name}: ${correct}/${total}</span>`;
-    }).join('');
+      const chip = document.createElement('span');
+      chip.className = 'history-chip';
+      chip.textContent = `${name}: ${correct}/${total}`;
+      return chip;
+    });
 
-    item.innerHTML = `
-      <div class="history-item-top">
-        <span>${formatAttemptDate(attempt.date)}</span>
-        <span class="history-item-status ${attempt.approved ? 'approved' : 'failed'}">
-          ${attempt.percent}% · ${attempt.approved ? 'Aprovado' : 'Não aprovado'}
-        </span>
-      </div>
-      <p class="history-item-meta">
-        ${attempt.total} questões · ${attempt.correct} acertos · Tempo ${formatElapsed(attempt.elapsedSeconds)}
-      </p>
-      <div class="history-item-editions">${chips}</div>
-    `;
+    const top = document.createElement('div');
+    top.className = 'history-item-top';
+    const dateEl = document.createElement('span');
+    dateEl.textContent = formatAttemptDate(attempt.date);
+    const status = document.createElement('span');
+    status.className = `history-item-status ${attempt.approved ? 'approved' : 'failed'}`;
+    status.textContent = `${attempt.percent}% · ${attempt.approved ? 'Aprovado' : 'Não aprovado'}`;
+    top.appendChild(dateEl);
+    top.appendChild(status);
+
+    const meta = document.createElement('p');
+    meta.className = 'history-item-meta';
+    meta.textContent = `${attempt.total} questões · ${attempt.correct} acertos · Tempo ${formatElapsed(attempt.elapsedSeconds)}`;
+
+    const editionsWrap = document.createElement('div');
+    editionsWrap.className = 'history-item-editions';
+    chips.forEach((chip) => editionsWrap.appendChild(chip));
+
+    item.appendChild(top);
+    item.appendChild(meta);
+    item.appendChild(editionsWrap);
     historyList.appendChild(item);
   });
 }
-

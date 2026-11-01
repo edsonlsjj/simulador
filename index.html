@@ -3,65 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
   <title>Simulado TEMFC - Medicina de Família e Comunidade</title>
+  <script>
+    (function () {
+      var KEY = 'temfc-theme:v1';
+      var theme = 'light';
+      try {
+        var saved = localStorage.getItem(KEY);
+        if (saved === 'light' || saved === 'dark') {
+          theme = saved;
+        } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          theme = 'dark';
+        }
+      } catch (err) {}
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
 
-  <!-- CABEÇALHO -->
   <header>
     <div class="header-container">
       <div class="logo-area">
         <span class="logo-badge">TEMFC</span>
         <div class="logo-title">
           <h1>Simulador de Provas SBMFC</h1>
-          <p>Medicina de Família e Comunidade &bull; Questões Sortidas</p>
+          <p>Medicina de Família e Comunidade • Questões sortidas</p>
         </div>
       </div>
-      <div id="timerContainer" class="timer-badge hidden">
-        ⏱️ <span id="timerDisplay">00:00:00</span>
+      <div class="header-actions">
+        <div id="timerContainer" class="timer-badge hidden" role="timer" aria-live="off" aria-label="Tempo restante">
+          <span class="timer-icon" aria-hidden="true"></span>
+          <span id="timerDisplay">00:00:00</span>
+        </div>
+        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Ativar tema escuro">
+          <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 14.3A8.5 8.5 0 0 1 9.7 3 7 7 0 1 0 21 14.3z"></path>
+          </svg>
+          <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"></circle>
+            <path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.2 6.2 4.8 4.8M19.2 19.2l-1.4-1.4M6.2 17.8 4.8 19.2M19.2 4.8l-1.4 1.4"></path>
+          </svg>
+        </button>
       </div>
     </div>
   </header>
 
-  <main>
-    <!-- TELA 1: CONFIGURAÇÃO DO SIMULADO -->
-    <section id="setupScreen" class="card">
+  <main id="conteudo">
+    <section id="setupScreen" class="card" aria-labelledby="setupTitle">
       <div class="setup-hero">
-        <h2>Simulado Inteligente TEMFC</h2>
+        <h2 id="setupTitle">Simulado inteligente TEMFC</h2>
         <p>Treine com questões sortidas e reais das edições do TEMFC (37, 36, 35, 34, 30 e anteriores).</p>
         <div class="bank-stats">
-          📚 Banco oficial: <strong id="totalBankCount" style="margin: 0 4px;">0</strong> questões catalogadas
+          Banco oficial: <strong id="totalBankCount">0</strong> questões catalogadas
         </div>
       </div>
 
       <div class="config-grid">
-        <div class="config-box">
-          <label>Quantidade de Questões Sortidas:</label>
-          <div class="options-pill-group" id="questionCountGroup">
-            <button type="button" class="pill-btn active" data-count="20">20 questões (Treino rápido)</button>
-            <button type="button" class="pill-btn" data-count="40">40 questões</button>
-            <button type="button" class="pill-btn" data-count="60">60 questões (Prova Teórica)</button>
-            <button type="button" class="pill-btn" data-count="80">80 questões (Simulado Completo)</button>
+        <fieldset class="config-box">
+          <legend>Quantidade de questões sortidas</legend>
+          <div class="options-pill-group" id="questionCountGroup" role="radiogroup" aria-label="Quantidade de questões">
+            <button type="button" class="pill-btn active" role="radio" aria-checked="true" data-count="20">20 questões (treino rápido)</button>
+            <button type="button" class="pill-btn" role="radio" aria-checked="false" data-count="40">40 questões</button>
+            <button type="button" class="pill-btn" role="radio" aria-checked="false" data-count="60">60 questões (prova teórica)</button>
+            <button type="button" class="pill-btn" role="radio" aria-checked="false" data-count="80">80 questões (simulado completo)</button>
           </div>
-        </div>
+        </fieldset>
 
-        <div class="config-box">
-          <label>Tempo / Cronômetro:</label>
-          <div class="options-pill-group" id="timerModeGroup">
-            <button type="button" class="pill-btn active" data-timer="none">Sem limite de tempo</button>
-            <button type="button" class="pill-btn" data-timer="standard">Tempo oficial (3 min / questão)</button>
+        <fieldset class="config-box">
+          <legend>Tempo / cronômetro</legend>
+          <div class="options-pill-group" id="timerModeGroup" role="radiogroup" aria-label="Modo de cronômetro">
+            <button type="button" class="pill-btn active" role="radio" aria-checked="true" data-timer="none">Sem limite de tempo</button>
+            <button type="button" class="pill-btn" role="radio" aria-checked="false" data-timer="standard">Tempo oficial (3 min / questão)</button>
           </div>
-        </div>
+        </fieldset>
       </div>
 
-      <button id="startBtn" class="btn-primary">
-        🚀 Gerar Simulado com Questões Sortidas
+      <button id="startBtn" class="btn-primary" type="button">
+        Gerar simulado com questões sortidas
       </button>
 
-      <div id="historySection" class="history-section">
+      <section id="historySection" class="history-section" aria-labelledby="historyTitle">
         <div class="history-header">
-          <h3>Meus simulados</h3>
+          <h3 id="historyTitle">Meus simulados</h3>
           <button type="button" id="clearHistoryBtn" class="btn-secondary hidden">Limpar histórico</button>
         </div>
         <p id="historyEmpty" class="history-empty">
@@ -84,97 +111,102 @@
           </div>
 
           <h4 class="history-block-title">Desempenho por edição do TEMFC</h4>
+          <p class="cutoff-hint">A linha vertical marca a nota de corte de 70%.</p>
           <div id="historyEditionStats" class="edition-stats"></div>
 
           <h4 class="history-block-title">Últimos simulados</h4>
           <div id="historyList" class="history-list"></div>
         </div>
-      </div>
+      </section>
     </section>
 
-    <!-- TELA 2: AMBIENTE DE PROVA -->
-    <section id="quizScreen" class="hidden">
+    <section id="quizScreen" class="hidden" aria-labelledby="quizTitle">
+      <h2 id="quizTitle" class="visually-hidden">Ambiente de prova</h2>
       <div class="quiz-layout">
-        <!-- ÁREA DA QUESTÃO -->
         <div class="question-card">
           <div class="question-header">
             <span class="question-tag" id="currentQProgress">Questão 1 de 20</span>
             <span class="question-origin" id="currentQOrigin">TEMFC 37</span>
           </div>
 
-          <div class="question-statement" id="currentQStatement">
-            Carregando enunciado...
-          </div>
+          <div class="question-body">
+            <div class="question-statement" id="currentQStatement">
+              Carregando enunciado...
+            </div>
 
-          <div class="options-list" id="currentQOptions">
-            <!-- Alternativas A, B, C, D injetadas aqui -->
+            <div class="options-list" id="currentQOptions" role="listbox" aria-label="Alternativas da questão">
+            </div>
           </div>
 
           <div class="quiz-footer-nav">
-            <button id="prevBtn" class="btn-secondary">⬅️ Anterior</button>
-            <button id="flagBtn" class="btn-secondary">🚩 Dúvida / Revisar</button>
-            <button id="nextBtn" class="btn-secondary">Próxima ➡️</button>
+            <button id="prevBtn" class="btn-secondary" type="button">Anterior</button>
+            <button id="flagBtn" class="btn-secondary" type="button" aria-pressed="false">Marcar dúvida</button>
+            <button id="nextBtn" class="btn-secondary" type="button">Próxima</button>
           </div>
         </div>
 
-        <!-- BARRA LATERAL COM GRADE -->
-        <aside class="sidebar-grid">
-          <div class="sidebar-title">Mapa de Questões</div>
-          <div class="question-numbers-grid" id="qNumbersGrid">
-            <!-- Botões 1, 2, 3... -->
-          </div>
-
-          <div style="margin-top: 24px;">
-            <button id="finishBtn" class="btn-success" style="width: 100%;">
-              🏁 Finalizar Simulado
-            </button>
-          </div>
+        <aside class="sidebar-grid" aria-labelledby="gridTitle">
+          <div class="sidebar-title" id="gridTitle">Mapa de questões</div>
+          <div class="question-numbers-grid" id="qNumbersGrid"></div>
+          <ul class="grid-legend">
+            <li><span class="legend-swatch"></span> Em branco</li>
+            <li><span class="legend-swatch answered"></span> Respondida</li>
+            <li><span class="legend-swatch flagged"></span> Dúvida</li>
+            <li><span class="legend-swatch active"></span> Atual</li>
+          </ul>
+          <button id="finishBtn" class="btn-success" type="button">
+            Finalizar simulado
+          </button>
         </aside>
       </div>
     </section>
 
-    <!-- TELA 3: RESULTADOS E DESEMPENHO -->
-    <section id="resultScreen" class="card hidden">
-      <div id="resultBanner" class="result-banner">
-        <div id="resultBadge" class="result-badge">APROVADO!</div>
-        <div id="resultSubtitle" class="result-subtitle">Você atingiu a pontuação mínima exigida pela SBMFC (70%).</div>
-        
-        <div class="stats-flex">
-          <div class="stat-item">
-            <span class="stat-value" id="statScore">0%</span>
-            <span class="stat-label">Aproveitamento</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value" id="statCorrect">0</span>
-            <span class="stat-label">Acertos</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value" id="statWrong">0</span>
-            <span class="stat-label">Erros</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-value" id="statTotal">0</span>
-            <span class="stat-label">Total</span>
-          </div>
+    <section id="resultScreen" class="card hidden" aria-labelledby="resultHeading">
+      <h2 id="resultHeading" class="visually-hidden">Resultado do simulado</h2>
+      <div id="resultBanner" class="result-hero">
+        <p class="result-kicker">Resultado do simulado</p>
+        <div id="statScore" class="result-score">0%</div>
+        <div id="resultBadge" class="result-status">Aprovado</div>
+        <p id="resultSubtitle" class="result-subtitle">Você atingiu a pontuação mínima exigida pela SBMFC (70%).</p>
+      </div>
+
+      <div class="result-metrics" aria-label="Resumo de acertos">
+        <div class="stat-item">
+          <span class="stat-value" id="statCorrect">0</span>
+          <span class="stat-label">Acertos</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="statWrong">0</span>
+          <span class="stat-label">Erros</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="statAnuladas">0</span>
+          <span class="stat-label">Anuladas</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value" id="statTotal">0</span>
+          <span class="stat-label">Total</span>
         </div>
       </div>
 
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h3 style="font-size: 20px;">Revisão Questão a Questão</h3>
-        <button id="restartBtn" class="btn-primary" style="width: auto; padding: 10px 20px;">
-          🔄 Gerar Novo Simulado
+      <section class="edition-panel" aria-labelledby="resultEditionTitle">
+        <h3 id="resultEditionTitle" class="history-block-title">Desempenho por edição do simulado</h3>
+        <p class="cutoff-hint">A linha vertical marca a nota de corte de 70%.</p>
+        <div id="resultEditionStats" class="edition-stats"></div>
+      </section>
+
+      <div class="review-header">
+        <h3>Revisão questão a questão</h3>
+        <button id="restartBtn" class="btn-primary btn-inline" type="button">
+          Gerar novo simulado
         </button>
       </div>
 
-      <div id="reviewList" class="review-list">
-        <!-- Itens de revisão gerados via JS -->
-      </div>
+      <div id="reviewList" class="review-list"></div>
     </section>
   </main>
 
-  <!-- SCRIPTS -->
   <script src="js/question-bank.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
-
